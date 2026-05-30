@@ -1,0 +1,190 @@
+/* AF Studios — shared site styles. Palette matches the BFE app. */
+
+:root {
+  --bg: #FBF8F3;
+  --surface: #FFFFFF;
+  --surface-2: #F4F0E9;
+  --text: #1B201E;
+  --muted: #6E726E;
+  --faint: #9A9D98;
+  --border: rgba(27, 32, 30, 0.10);
+  --primary: #13715F;
+  --accent: #E0A458;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #121514;
+    --surface: #1B1F1D;
+    --surface-2: #232826;
+    --text: #F1EEE8;
+    --muted: #9DA29D;
+    --faint: #6C716C;
+    --border: rgba(255, 255, 255, 0.12);
+    --primary: #3CB89C;
+    --accent: #E6AE66;
+  }
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+html, body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  font-size: 16px;
+  line-height: 1.55;
+}
+
+a { color: var(--primary); text-decoration: none; }
+a:hover { text-decoration: underline; }
+
+.container {
+  max-width: 680px;
+  margin: 0 auto;
+  padding: 80px 24px 96px;
+}
+
+.container.narrow { max-width: 620px; }
+
+header h1 {
+  font-family: "Fraunces", Georgia, serif;
+  font-size: clamp(40px, 6vw, 56px);
+  font-weight: 600;
+  line-height: 1.05;
+  letter-spacing: -0.5px;
+  color: var(--primary);
+}
+
+.tagline {
+  margin-top: 12px;
+  font-size: 17px;
+  color: var(--muted);
+}
+
+section {
+  margin-top: 56px;
+}
+
+h2.section {
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 1.8px;
+  color: var(--faint);
+  margin-bottom: 18px;
+}
+
+.apps {
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.apps li {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 18px;
+  padding: 22px 24px;
+}
+
+.apps h3 {
+  font-family: "Fraunces", Georgia, serif;
+  font-size: 22px;
+  font-weight: 600;
+  letter-spacing: -0.2px;
+  margin-bottom: 4px;
+}
+
+.apps .desc { color: var(--muted); font-size: 15px; }
+
+.apps .links {
+  margin-top: 14px;
+  font-size: 13.5px;
+  color: var(--faint);
+}
+
+.apps .links a {
+  font-weight: 600;
+}
+
+.apps .links a + a { margin-left: 4px; }
+
+.apps .links .sep { color: var(--faint); margin: 0 6px; }
+
+.contact-email {
+  font-family: "Fraunces", Georgia, serif;
+  font-size: 22px;
+  font-weight: 500;
+  letter-spacing: -0.2px;
+}
+
+footer {
+  margin-top: 96px;
+  padding-top: 24px;
+  border-top: 1px solid var(--border);
+  font-size: 13px;
+  color: var(--faint);
+}
+
+/* Legal page styles (PRIVACY / TERMS) */
+
+.back {
+  display: inline-block;
+  font-size: 13px;
+  color: var(--muted);
+  margin-bottom: 32px;
+}
+
+.legal h1 {
+  font-family: "Fraunces", Georgia, serif;
+  font-size: 36px;
+  font-weight: 600;
+  letter-spacing: -0.4px;
+  margin-bottom: 6px;
+}
+
+.legal .subtitle {
+  color: var(--faint);
+  font-size: 14px;
+  margin-bottom: 40px;
+}
+
+.legal h2 {
+  font-family: "Fraunces", Georgia, serif;
+  font-size: 22px;
+  font-weight: 600;
+  letter-spacing: -0.2px;
+  margin-top: 40px;
+  margin-bottom: 12px;
+}
+
+.legal h3 {
+  font-size: 16px;
+  font-weight: 700;
+  margin-top: 24px;
+  margin-bottom: 8px;
+}
+
+.legal p { margin-bottom: 14px; color: var(--text); }
+.legal p.small { font-size: 14px; color: var(--muted); }
+
+.legal ul {
+  list-style: disc;
+  padding-left: 22px;
+  margin-bottom: 14px;
+}
+
+.legal ul li { margin-bottom: 8px; }
+
+.legal hr {
+  border: 0;
+  height: 1px;
+  background: var(--border);
+  margin: 48px 0;
+}
+
+.legal strong { color: var(--text); }
