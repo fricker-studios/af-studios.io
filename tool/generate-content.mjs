@@ -1,31 +1,19 @@
-// Generates a new content batch for Best Friend Energy using Claude Haiku.
+// Generates a new content batch for Best Friend Energy using Claude Haiku and
+// uploads it to the Cloudflare R2 bucket. The Worker (worker/src/index.js)
+// then serves it to the app over an authenticated endpoint.
 //
 // Flow:
-//   1. Read all existing batches in best-friend-energy/content/ (dedup context).
+//   1. List existing batch-N.json objects in R2 (dedup context).
 //   2. For each category, ask Claude for N new items, providing a sample of
 //      what already exists so it doesn't repeat.
-//   3. Safety review: hard denylist of show-associated terms + an LLM-as-judge
-//      second pass. Flagged items are dropped (with reasons logged).
-//   4. Write batch-{n}.json + update manifest.json.
+//   3. Safety review: hard denylist + LLM-as-judge second pass.
+//   4. Upload batch-{n}.json + updated manifest.json to R2.
 //
-// Env: ANTHROPIC_API_KEY must be set (GitHub Secret in CI, ~/.zshenv locally).
+// Required env: ANTHROPIC_API_KEY, R2_ACCOUNT_ID, R2_ACCESS_KEY_ID, R2_SECRET_ACCESS_KEY.
 // Run: `node tool/generate-content.mjs` (or `npm run generate`)
 
 import Anthropic from '@anthropic-ai/sdk';
-import {
-  readFileSync,
-  writeFileSync,
-  existsSync,
-  readdirSync,
-  mkdirSync,
-} from 'node:fs';
-import { join, dirname } from 'node:path';
-import { fileURLToPath } from 'node:url';
-
-const __dirname = dirname(fileURLToPath(import.meta.url));
-const ROOT = join(__dirname, '..');
-const CONTENT_DIR = join(ROOT, 'best-friend-energy', 'content');
-const MANIFEST_PATH = join(CONTENT_DIR, 'manifest.json');
+import { r2Client, listKeys, getJson, putJson, BUCKET } from './lib/r2.mjs';
 
 const MODEL = process.env.BFE_MODEL || 'claude-haiku-4-5';
 
@@ -63,7 +51,6 @@ Do NOT:
 
 Invent FRESH, ORIGINAL combinations.`;
 
-// Hard denylist applied AFTER generation (defense in depth).
 const DENYLIST = [
   // Character names
   'leslie',
@@ -98,23 +85,29 @@ const DENYLIST = [
 ];
 
 const client = new Anthropic();
+const r2 = r2Client();
 
-// ---------------- batch I/O ----------------
+// ---------------- batch I/O via R2 ----------------
 
-function listBatchFiles() {
-  if (!existsSync(CONTENT_DIR)) return [];
-  return readdirSync(CONTENT_DIR)
-    .filter((f) => /^batch-\d+\.json$/.test(f))
-    .sort((a, b) => parseInt(a.match(/\d+/)[0]) - parseInt(b.match(/\d+/)[0]));
+function batchKeyToVersion(key) {
+  const m = key.match(/^batch-(\d+)\.json$/);
+  return m ? parseInt(m[1], 10) : null;
 }
 
-function loadAllExisting() {
+async function listBatchKeys() {
+  const keys = await listKeys(r2);
+  return keys
+    .filter((k) => batchKeyToVersion(k) !== null)
+    .sort((a, b) => batchKeyToVersion(a) - batchKeyToVersion(b));
+}
+
+async function loadAllExisting(batchKeys) {
   const merged = {};
   for (const key of Object.keys(TARGETS)) merged[key] = new Set();
-  for (const file of listBatchFiles()) {
-    const batch = JSON.parse(readFileSync(join(CONTENT_DIR, file), 'utf8'));
-    for (const key of Object.keys(TARGETS)) {
-      for (const item of batch[key] || []) merged[key].add(item);
+  for (const k of batchKeys) {
+    const batch = await getJson(r2, k);
+    for (const cat of Object.keys(TARGETS)) {
+      for (const item of batch[cat] || []) merged[cat].add(item);
     }
   }
   return Object.fromEntries(
@@ -122,11 +115,10 @@ function loadAllExisting() {
   );
 }
 
-function nextBatchVersion() {
-  const files = listBatchFiles();
-  if (files.length === 0) return 1;
-  const last = files[files.length - 1];
-  return parseInt(last.match(/\d+/)[0]) + 10 - 9; // = +1, just being explicit
+function nextVersion(batchKeys) {
+  if (batchKeys.length === 0) return 1;
+  const last = batchKeys[batchKeys.length - 1];
+  return batchKeyToVersion(last) + 1;
 }
 
 // ---------------- generation ----------------
@@ -259,23 +251,21 @@ function applyJudgeFlags(batch, judge) {
 
 // ---------------- manifest ----------------
 
-function rebuildManifest() {
-  const files = listBatchFiles();
-  const batches = files.map((f) => {
-    const data = JSON.parse(readFileSync(join(CONTENT_DIR, f), 'utf8'));
+async function rebuildManifest(batchKeys) {
+  const batches = [];
+  for (const k of batchKeys) {
+    const data = await getJson(r2, k);
     const items = Object.keys(TARGETS).reduce(
-      (sum, k) => sum + (data[k] || []).length,
+      (sum, key) => sum + (data[key] || []).length,
       0,
     );
-    return { version: data.version, url: f, items };
-  });
-  const manifest = {
+    batches.push({ version: data.version, url: k, items });
+  }
+  return {
     schema_version: 1,
-    updated_at: '2026-05-30T00:00:00Z', // updated by CI commit, not at generate time
+    updated_at: new Date().toISOString(),
     batches,
   };
-  writeFileSync(MANIFEST_PATH, JSON.stringify(manifest, null, 2) + '\n');
-  return manifest;
 }
 
 // ---------------- main ----------------
@@ -285,16 +275,28 @@ async function main() {
     console.error('ANTHROPIC_API_KEY not set. Aborting.');
     process.exit(1);
   }
-  if (!existsSync(CONTENT_DIR)) mkdirSync(CONTENT_DIR, { recursive: true });
 
   console.log(`Model: ${MODEL}`);
-  console.log('Loading existing batches for dedup context...');
-  const existing = loadAllExisting();
+  console.log(`R2 bucket: ${BUCKET}`);
+
+  console.log('\nListing existing batches in R2...');
+  const existingKeys = await listBatchKeys();
+  console.log(`  found ${existingKeys.length} batch(es): ${existingKeys.join(', ') || '(none)'}`);
+
+  if (existingKeys.length === 0) {
+    console.error(
+      'No existing batches in R2. Seed the bucket first: `npm run extract-baseline && npm run seed-r2`.',
+    );
+    process.exit(1);
+  }
+
+  console.log('Loading them for dedup context...');
+  const existing = await loadAllExisting(existingKeys);
   for (const k of Object.keys(TARGETS)) {
     console.log(`  existing ${k}: ${existing[k].length}`);
   }
 
-  const version = nextBatchVersion();
+  const version = nextVersion(existingKeys);
   console.log(`\nGenerating batch ${version}...`);
   const batch = { version };
   for (const [category, n] of Object.entries(TARGETS)) {
@@ -319,16 +321,19 @@ async function main() {
   }
   if (judge.notes) console.log(`  judge notes: ${judge.notes}`);
 
-  const outPath = join(CONTENT_DIR, `batch-${version}.json`);
-  writeFileSync(outPath, JSON.stringify(batch, null, 2) + '\n');
-  console.log(`\nWrote ${outPath}`);
+  const key = `batch-${version}.json`;
+  console.log(`\nUploading ${key} to R2...`);
+  await putJson(r2, key, batch);
   for (const k of Object.keys(TARGETS)) {
     console.log(`  final ${k}: ${batch[k].length}`);
   }
 
   console.log('\nRebuilding manifest...');
-  const manifest = rebuildManifest();
+  const allKeys = [...existingKeys, key];
+  const manifest = await rebuildManifest(allKeys);
+  await putJson(r2, 'manifest.json', manifest);
   console.log(`  ${manifest.batches.length} batch(es) in manifest`);
+  console.log(`\nDone. Batch ${version} live.`);
 }
 
 main().catch((e) => {

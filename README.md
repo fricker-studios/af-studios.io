@@ -89,50 +89,69 @@ content largely follows the Markdown 1:1.
 
 ## BFE content pipeline (Phase 2A)
 
-This repo also hosts generated content batches for Best Friend Energy under
-`best-friend-energy/content/`. The Flutter app fetches `manifest.json` on
-launch and downloads any new batches it doesn't have.
+Generated content batches for Best Friend Energy are **not** hosted on this
+public site. They live in a private Cloudflare R2 bucket and are served by a
+small Cloudflare Worker that validates a shared-secret `Authorization` header.
+The Flutter app holds the secret and is the only client that can fetch.
+
+This file describes the moving parts; one-time Cloudflare setup steps live in
+[`SETUP.md`](./SETUP.md).
 
 ### Layout
 
 ```
-best-friend-energy/content/
-├── manifest.json        # versions + URLs + item counts
-├── batch-0.json         # v1 baseline (extracted from the app's bundled content)
-├── batch-1.json         # generated batch
-└── batch-N.json         # …
+af-studios.io/
+├── tool/
+│   ├── lib/r2.mjs              # S3 client pointed at R2
+│   ├── extract-baseline.mjs    # reads BFE app → tmp/baseline.json
+│   ├── seed-r2.mjs              # one-time: uploads tmp/baseline.json as batch-0
+│   └── generate-content.mjs    # generates + safety-reviews + uploads new batches
+├── worker/
+│   ├── wrangler.toml           # Cloudflare Worker config (binds R2 bucket "bfe-content")
+│   └── src/index.js             # Worker code: auth check + R2 fetch
+└── .github/workflows/
+    └── generate-content.yml     # workflow_dispatch trigger; runs the generator
 ```
+
+Nothing in `best-friend-energy/content/` — the directory is gone. The R2 bucket
+holds `batch-0.json`, `batch-1.json`, …, plus `manifest.json`.
+
+### How a generation run works
+
+1. GitHub Actions workflow `Generate BFE content batch` runs on manual dispatch.
+2. `tool/generate-content.mjs`:
+   - lists existing `batch-N.json` objects in R2 (dedup context),
+   - downloads them and asks Claude Haiku for new items per category,
+   - filters through a hardcoded denylist of show-associated terms,
+   - runs an LLM-as-judge second pass,
+   - uploads `batch-{n}.json` and an updated `manifest.json` to R2.
+3. Within seconds, the Worker can serve them to the app.
 
 ### Generating a new batch
 
-1. Set the `ANTHROPIC_API_KEY` repository secret on GitHub
-   (Settings → Secrets and variables → Actions).
-2. Go to **Actions → Generate BFE content batch → Run workflow**.
-3. The job runs `tool/generate-content.mjs`, which:
-   - reads every existing batch for dedup context
-   - asks Claude Haiku for the v1-baseline-sized set of new items per category
-   - filters through a hardcoded denylist of show-associated terms
-   - runs an LLM-as-judge second pass
-   - writes `batch-{n}.json` + rebuilds `manifest.json`
-   - commits and pushes
+Push **Run workflow** in the Actions tab. That's it. No code change, no
+commit; the new batch lives in R2.
 
-### Running locally
+To run locally instead (handy when iterating on prompts):
 
 ```bash
 npm install
 export ANTHROPIC_API_KEY=sk-ant-...
+export R2_ACCOUNT_ID=...
+export R2_ACCESS_KEY_ID=...
+export R2_SECRET_ACCESS_KEY=...
 node tool/generate-content.mjs
 ```
 
 ### Refreshing the baseline (rare)
 
 If you hand-edit `lib/data/content_data.dart` in the BFE app and want the
-generation pipeline to know about it:
+generation pipeline to consider the new items:
 
 ```bash
-node tool/extract-baseline.mjs
+npm run extract-baseline   # writes tmp/baseline.json
+npm run seed-r2            # uploads tmp/baseline.json to R2 as batch-0
 ```
 
-This rewrites `batch-0.json` from the current Dart source. Defaults to
-`/Users/africker/git/github/knopisms/lib/data/content_data.dart`; override with
-`BFE_CONTENT_PATH=...`.
+This overwrites batch-0 in R2. Subsequent generations will dedupe against the
+new baseline.

@@ -1,14 +1,19 @@
-// One-time script: reads the BFE Flutter app's lib/data/content_data.dart and
-// emits batch-0.json — the shipped v1 baseline that future generation passes
-// will dedupe against. Re-run if you ever hand-edit content_data.dart and want
-// the pipeline to know about the changes.
-import { readFileSync, writeFileSync, existsSync, mkdirSync } from 'node:fs';
+// One-time-ish script: reads the BFE Flutter app's lib/data/content_data.dart
+// and writes tmp/baseline.json. Combined with `npm run seed-r2`, this seeds
+// the R2 bucket with batch-0. Re-run if you hand-edit content_data.dart and
+// want the generation pipeline to know about the changes (then re-seed).
+import {
+  readFileSync,
+  writeFileSync,
+  existsSync,
+  mkdirSync,
+} from 'node:fs';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const ROOT = join(__dirname, '..');
-const CONTENT_DIR = join(ROOT, 'best-friend-energy', 'content');
+const TMP_DIR = join(ROOT, 'tmp');
 
 const DART_PATH =
   process.env.BFE_CONTENT_PATH ||
@@ -23,7 +28,6 @@ const FIELDS = [
 ];
 
 function extractList(dart, name) {
-  // Matches: name: <String>[\n   "item",\n   "item",\n  ],
   const re = new RegExp(
     `${name}:\\s*<String>\\[\\s*([\\s\\S]*?)\\s*\\]`,
     'm',
@@ -52,10 +56,11 @@ const dart = readFileSync(DART_PATH, 'utf8');
 const baseline = { version: 0 };
 for (const f of FIELDS) baseline[f] = extractList(dart, f);
 
-if (!existsSync(CONTENT_DIR)) mkdirSync(CONTENT_DIR, { recursive: true });
+if (!existsSync(TMP_DIR)) mkdirSync(TMP_DIR, { recursive: true });
 
-const outPath = join(CONTENT_DIR, 'batch-0.json');
+const outPath = join(TMP_DIR, 'baseline.json');
 writeFileSync(outPath, JSON.stringify(baseline, null, 2) + '\n');
 
 console.log(`Wrote ${outPath}`);
 for (const f of FIELDS) console.log(`  ${f}: ${baseline[f].length}`);
+console.log('\nNext: `npm run seed-r2` to upload to R2 as batch-0.');

@@ -1,0 +1,14 @@
+{
+  "name": "bfe-content-worker",
+  "version": "1.0.0",
+  "type": "module",
+  "private": true,
+  "description": "Cloudflare Worker that serves BFE content from a private R2 bucket behind a shared-secret check.",
+  "scripts": {
+    "dev": "wrangler dev",
+    "deploy": "wrangler deploy"
+  },
+  "devDependencies": {
+    "wrangler": "^3.86.0"
+  }
+}

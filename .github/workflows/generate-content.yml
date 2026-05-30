@@ -1,15 +1,15 @@
 name: Generate BFE content batch
 
-# On-demand trigger: go to the Actions tab and click "Run workflow."
+# On-demand trigger only. Go to the Actions tab and click "Run workflow."
 on:
   workflow_dispatch:
     inputs:
       reason:
-        description: 'Why generate now? (logged in the commit)'
+        description: 'Why generate now? (logged to job summary only)'
         required: false
         default: 'on-demand'
 
-# Only one generation run at a time.
+# Only one generation run at a time across all branches.
 concurrency:
   group: generate-bfe-content
   cancel-in-progress: false
@@ -17,8 +17,6 @@ concurrency:
 jobs:
   generate:
     runs-on: ubuntu-latest
-    permissions:
-      contents: write
     steps:
       - uses: actions/checkout@v4
 
@@ -29,31 +27,14 @@ jobs:
       - name: Install dependencies
         run: npm install
 
-      - name: Generate new batch
+      - name: Generate new batch + upload to R2
         env:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          R2_ACCOUNT_ID: ${{ secrets.R2_ACCOUNT_ID }}
+          R2_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+          R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
         run: node tool/generate-content.mjs
 
-      - name: Stamp manifest updated_at
-        run: |
-          ts="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
-          tmp=$(mktemp)
-          node -e "
-            const fs = require('node:fs');
-            const p = 'best-friend-energy/content/manifest.json';
-            const m = JSON.parse(fs.readFileSync(p, 'utf8'));
-            m.updated_at = process.argv[1];
-            fs.writeFileSync(p, JSON.stringify(m, null, 2) + '\n');
-          " "$ts"
-
-      - name: Commit and push
-        run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add best-friend-energy/content/
-          if git diff --staged --quiet; then
-            echo "No changes to commit."
-            exit 0
-          fi
-          git commit -m "content: new BFE batch (${{ inputs.reason }})"
-          git push
+      - name: Summary
+        if: always()
+        run: echo "Reason: ${{ inputs.reason }}" >> $GITHUB_STEP_SUMMARY

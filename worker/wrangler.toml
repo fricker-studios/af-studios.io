@@ -1,0 +1,13 @@
+name = "bfe-content"
+main = "src/index.js"
+compatibility_date = "2026-05-30"
+
+# R2 bucket binding. The bucket must already exist; create with:
+#   wrangler r2 bucket create bfe-content
+[[r2_buckets]]
+binding = "BFE_CONTENT"
+bucket_name = "bfe-content"
+
+# Set the shared secret with:
+#   wrangler secret put APP_SECRET
+# It must match kContentApiKey in lib/constants.dart of the Flutter app.
