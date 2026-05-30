@@ -37,4 +37,5 @@ jobs:
 
       - name: Summary
         if: always()
-        run: echo "Reason: ${{ inputs.reason }}" >> $GITHUB_STEP_SUMMARY
+        run: |
+          echo "Reason: ${{ inputs.reason }}" >> $GITHUB_STEP_SUMMARY
