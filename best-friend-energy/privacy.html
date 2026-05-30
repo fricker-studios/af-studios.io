@@ -18,8 +18,8 @@
     <h2>Summary</h2>
     <ul>
       <li><strong>No accounts.</strong> You don't sign up; we don't know who you are.</li>
-      <li><strong>We collect nothing directly.</strong> Your favorites, theme, and optional profile (name, gender) live only on your device.</li>
-      <li><strong>Third parties may collect data:</strong> Google AdMob (free-tier ads) and RevenueCat + Apple/Google (the optional subscription). Their policies apply.</li>
+      <li><strong>Your stuff stays on your device.</strong> Favorites, theme, and optional profile (name, gender) are never sent off-device.</li>
+      <li><strong>Third parties may receive data:</strong> Google AdMob (free-tier ads), RevenueCat + Apple/Google (the optional subscription), and Sentry (anonymized crash reports if the app errors). Their policies apply.</li>
     </ul>
 
     <h2>Who we are</h2>
@@ -31,9 +31,11 @@
 
     <h2>Information we collect ourselves</h2>
     <p>
-      <strong>None.</strong> The app does not transmit personal information to
-      any server we control. There is no analytics SDK; no crash reporting that
-      includes personal data; no account system.
+      <strong>None directly.</strong> The app does not transmit personal
+      information to any server we control. We use Sentry to receive anonymized
+      crash reports — no IP address, no profile data, no screen recordings; the
+      full list is in the Sentry section below. There is no general-purpose
+      analytics SDK and no account system.
     </p>
 
     <h2>Information stored on your device</h2>
@@ -84,6 +86,29 @@
       If you subscribe, Apple or Google processes the payment. We never see or
       store your payment details.
     </p>
+
+    <h3>Sentry (crash &amp; error reporting)</h3>
+    <p>
+      When the app crashes or hits an unhandled error, a report is sent to
+      Sentry so we can fix the bug. Each report includes a stack trace, device
+      and OS info (model, OS version, app version), and recent app navigation
+      breadcrumbs (screens visited, button taps). We also sample a small
+      percentage (~10%) of performance traces in production to detect slow
+      screens.
+    </p>
+    <p>
+      The reports do <strong>not</strong> include:
+    </p>
+    <ul>
+      <li>Your IP address (we disabled this)</li>
+      <li>Anything you typed (no profile name, no friend's name)</li>
+      <li>Your saved favorites</li>
+      <li>Screen recordings or session replays (we disabled these)</li>
+      <li>Console logs (we disabled forwarding)</li>
+    </ul>
+    <ul>
+      <li><a href="https://sentry.io/privacy/">Sentry's Privacy Policy</a></li>
+    </ul>
 
     <h2>Your choices</h2>
     <ul>

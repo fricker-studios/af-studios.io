@@ -1,0 +1,59 @@
+name: Generate BFE content batch
+
+# On-demand trigger: go to the Actions tab and click "Run workflow."
+on:
+  workflow_dispatch:
+    inputs:
+      reason:
+        description: 'Why generate now? (logged in the commit)'
+        required: false
+        default: 'on-demand'
+
+# Only one generation run at a time.
+concurrency:
+  group: generate-bfe-content
+  cancel-in-progress: false
+
+jobs:
+  generate:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Generate new batch
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+        run: node tool/generate-content.mjs
+
+      - name: Stamp manifest updated_at
+        run: |
+          ts="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+          tmp=$(mktemp)
+          node -e "
+            const fs = require('node:fs');
+            const p = 'best-friend-energy/content/manifest.json';
+            const m = JSON.parse(fs.readFileSync(p, 'utf8'));
+            m.updated_at = process.argv[1];
+            fs.writeFileSync(p, JSON.stringify(m, null, 2) + '\n');
+          " "$ts"
+
+      - name: Commit and push
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add best-friend-energy/content/
+          if git diff --staged --quiet; then
+            echo "No changes to commit."
+            exit 0
+          fi
+          git commit -m "content: new BFE batch (${{ inputs.reason }})"
+          git push

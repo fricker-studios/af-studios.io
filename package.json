@@ -1,0 +1,17 @@
+{
+  "name": "af-studios-content",
+  "version": "1.0.0",
+  "type": "module",
+  "private": true,
+  "description": "Content-generation pipeline for Best Friend Energy (and future AF Studios apps).",
+  "scripts": {
+    "extract-baseline": "node tool/extract-baseline.mjs",
+    "generate": "node tool/generate-content.mjs"
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.32.0"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}
