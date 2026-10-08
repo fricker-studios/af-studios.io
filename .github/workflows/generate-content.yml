@@ -16,7 +16,7 @@ concurrency:
 
 jobs:
   generate:
-    runs-on: ubuntu-latest
+    runs-on: arc-runner-fricker-amd64
     steps:
       - uses: actions/checkout@v4
 
